@@ -1,0 +1,295 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth (Auth.js v5 required models) ───────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  username      String?   @unique
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  bio           String?
+  passwordHash  String?
+  role          UserRole  @default(USER)
+
+  accounts     Account[]
+  sessions     Session[]
+  posts        Post[]
+  comments     Comment[]
+  gameStatuses UserGameStatus[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum UserRole {
+  USER
+  AUTHOR
+  ADMIN
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// ─── Blog / Articles ─────────────────────────────────────────────────────────
+
+model Post {
+  id            String     @id @default(cuid())
+  title         String
+  slug          String     @unique
+  excerpt       String?
+  content       Json
+  featuredImage String?
+  status        PostStatus @default(DRAFT)
+  type          PostType   @default(ARTICLE)
+  publishedAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  authorId   String
+  author     User       @relation(fields: [authorId], references: [id])
+  categories Category[] @relation("PostCategories")
+  tags       Tag[]      @relation("PostTags")
+  comments   Comment[]
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum PostType {
+  ARTICLE
+  REVIEW
+  LIST
+  NEWS
+}
+
+model Category {
+  id   String @id @default(cuid())
+  name String @unique
+  slug String @unique
+
+  posts Post[] @relation("PostCategories")
+}
+
+model Tag {
+  id   String @id @default(cuid())
+  name String @unique
+  slug String @unique
+
+  posts Post[] @relation("PostTags")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  postId   String
+  post     Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  parentId String?
+  parent   Comment?  @relation("Replies", fields: [parentId], references: [id])
+  replies  Comment[] @relation("Replies")
+}
+
+// ─── Release Schedule / Games ─────────────────────────────────────────────────
+
+enum GameCategory {
+  MAIN_GAME
+  DLC
+  EXPANSION
+  BUNDLE
+  STANDALONE_EXPANSION
+  EPISODE
+  SEASON
+  REMAKE
+  REMASTER
+  EXPANDED_GAME
+  PORT
+  PACK
+  UPDATE
+}
+
+enum DatePrecision {
+  EXACT    // day/month/year known
+  MONTH    // month + year only
+  QUARTER  // Q1/Q2/Q3/Q4 + year
+  YEAR     // year only
+  TBD      // no date at all
+}
+
+enum ReleaseType {
+  PHYSICAL
+  DIGITAL
+  BOTH
+  UNKNOWN
+}
+
+enum ReleaseStatus {
+  RUMOURED
+  ANNOUNCED
+  CONFIRMED
+  EARLY_ACCESS
+  RELEASED
+  CANCELLED
+}
+
+enum Storefront {
+  STEAM
+  EPIC
+  GOG
+  MICROSOFT
+  PLAYSTATION
+  NINTENDO
+  ITCHIO
+  OTHER
+}
+
+model Platform {
+  id           String  @id @default(cuid())
+  igdbId       Int     @unique
+  name         String
+  slug         String  @unique
+  abbreviation String?
+  logoUrl      String?
+  generation   Int?
+  isTracked    Boolean @default(true)
+
+  releases GameRelease[]
+}
+
+model Game {
+  id               String       @id @default(cuid())
+  igdbId           Int          @unique
+  title            String
+  slug             String       @unique
+  coverUrl         String?
+  summary          String?
+  storyline        String?
+  developers       String[]
+  publishers       String[]
+  websiteUrl       String?
+  category         GameCategory @default(MAIN_GAME)
+  genres           String[]
+  rating           Float?
+  ratingCount      Int?
+  hypes            Int?
+  firstReleaseDate DateTime?
+  igdbUpdatedAt    DateTime?
+
+  releases     GameRelease[]
+  storefronts  GameStorefront[]
+  screenshots  GameScreenshot[]
+  userStatuses UserGameStatus[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model GameScreenshot {
+  id     String @id @default(cuid())
+  igdbId Int    @unique
+  url    String
+
+  gameId String
+  game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+}
+
+model GameStorefront {
+  id             String     @id @default(cuid())
+  storefront     Storefront
+  url            String?
+  igdbExternalId Int?       @unique
+
+  gameId String
+  game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, storefront])
+}
+
+model GameRelease {
+  id                String        @id @default(cuid())
+  igdbReleaseDateId Int?          @unique
+  releaseDate       DateTime?
+  datePrecision     DatePrecision @default(EXACT)
+  quarterLabel      String?
+  yearLabel         Int?
+  region            String?
+  status            ReleaseStatus @default(ANNOUNCED)
+  releaseType       ReleaseType   @default(UNKNOWN)
+
+  gameId     String
+  game       Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  platformId String
+  platform   Platform @relation(fields: [platformId], references: [id])
+}
+
+// ─── User / Game relationship ─────────────────────────────────────────────────
+
+model UserGameStatus {
+  id        String         @id @default(cuid())
+  status    GameStatusType
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameId String
+  game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameId])
+}
+
+enum GameStatusType {
+  WANT
+  PRE_ORDERED
+  OWNED
+}
