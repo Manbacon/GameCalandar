@@ -209,16 +209,17 @@ export async function syncIgdbReleases(): Promise<SyncResult> {
     }
   }
 
-  // 3.6. Remove future release records for old games not seen in this sync.
-  //      IGDB "Offline" records (server shutdowns, delistings) are now filtered from sync,
-  //      but any previously stored records need purging. We identify them by looking for
-  //      games with future dates that IGDB no longer returns as upcoming.
+  // 3.6. Remove stale release records for old games not seen in this sync.
+  //      IGDB "Offline" records (server shutdowns, delistings) are filtered at ingest time,
+  //      but previously stored records need purging. We look back 60 days so shutdown dates
+  //      that occurred since the last sync are also caught (not just purely future dates).
   try {
     const seenIgdbGameIds = Array.from(syncedIdsByGame.keys());
-    const twoYearsAgo = new Date(Date.now() - 730 * 24 * 60 * 60 * 1000);
+    const twoYearsAgo  = new Date(Date.now() - 730 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(Date.now() -  60 * 24 * 60 * 60 * 1000);
     const { count: offlineCount } = await prisma.gameRelease.deleteMany({
       where: {
-        releaseDate: { gte: new Date() },
+        releaseDate: { gte: sixtyDaysAgo },
         game: {
           igdbId: { notIn: seenIgdbGameIds },
           firstReleaseDate: { lt: twoYearsAgo, not: null },

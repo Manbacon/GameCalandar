@@ -157,7 +157,7 @@ export interface IgdbGameDetails {
   websites?: { category: number; url: string }[];
 }
 
-// Platform IDs to exclude: mobile and very old hardware
+// Platform IDs to exclude: mobile, very old hardware, and niche/irrelevant platforms
 const EXCLUDED_PLATFORM_IDS = new Set([
   34,  // Android
   39,  // iOS
@@ -178,6 +178,13 @@ const EXCLUDED_PLATFORM_IDS = new Set([
   37,  // 3DS
   22,  // GameBoy Color
   33,  // GameBoy Advance
+  // Niche / irrelevant
+  46,  // PlayStation Vita
+  82,  // Web browser
+  161, // Windows Mixed Reality
+  381, // Playdate
+  438, // Arduboy
+  472, // visionOS
 ]);
 
 // IGDB game categories to exclude: mods (5) and forks (12)
