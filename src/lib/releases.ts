@@ -160,3 +160,23 @@ export function groupImprecise(releases: GroupedRelease[]): ImpreciseBucket[] {
   }
   return Array.from(buckets.entries()).map(([label, rs]) => ({ label, releases: rs }));
 }
+
+// ─── Game search ──────────────────────────────────────────────────────────────
+
+export async function searchGames(query: string, limit = 24) {
+  if (!query.trim()) return [];
+  return prisma.game.findMany({
+    where: { title: { contains: query, mode: 'insensitive' } },
+    include: {
+      releases: {
+        where: { platform: { isTracked: true }, status: { notIn: ['CANCELLED'] } },
+        include: { platform: true },
+        orderBy: { releaseDate: 'asc' },
+      },
+    },
+    orderBy: [{ hypes: 'desc' }, { ratingCount: 'desc' }],
+    take: limit,
+  });
+}
+
+export type GameSearchResult = Awaited<ReturnType<typeof searchGames>>[number];

@@ -1,7 +1,6 @@
 import {
   getReleasesForMonth,
   getImpreciseReleases,
-  getReleasesForList,
   getTrackedPlatforms,
   groupReleasesForDisplay,
   filterByPlatform,
@@ -129,7 +128,7 @@ function SpotlightCard({ release, rank }: { release: GroupedRelease; rank: numbe
         </div>
         {release.game.hypes != null && release.game.hypes > 0 && (
           <div className="absolute bottom-2 right-2">
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-950/70 backdrop-blur-sm text-cyan-400 border border-cyan-900/50">
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-950/70 backdrop-blur-sm text-violet-400 border border-violet-900/50">
               <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
               </svg>
@@ -242,7 +241,7 @@ function CalendarGrid({
             <div
               key={dateKey}
               className={`min-h-[90px] p-1.5 rounded-lg border transition-colors ${
-                isToday      ? 'border-cyan-500 bg-cyan-950/20'
+                isToday      ? 'border-violet-500 bg-violet-950/20'
                 : dayReleases.length ? 'border-zinc-700 bg-zinc-900'
                 : 'border-zinc-800/40 bg-zinc-900/20'
               } ${isPast && !isToday ? 'opacity-50' : ''}`}
@@ -250,12 +249,12 @@ function CalendarGrid({
               {hasDayPage ? (
                 <Link
                   href={`/releases/day/${dateKey}`}
-                  className={`text-xs font-bold mb-1 block hover:underline ${isToday ? 'text-cyan-400' : 'text-zinc-400 hover:text-zinc-200'}`}
+                  className={`text-xs font-bold mb-1 block hover:underline ${isToday ? 'text-violet-400' : 'text-zinc-400 hover:text-zinc-200'}`}
                 >
                   {day}
                 </Link>
               ) : (
-                <p className={`text-xs font-bold mb-1 ${isToday ? 'text-cyan-400' : 'text-zinc-500'}`}>{day}</p>
+                <p className={`text-xs font-bold mb-1 ${isToday ? 'text-violet-400' : 'text-zinc-500'}`}>{day}</p>
               )}
               <div className="space-y-0.5">
                 {[...dayReleases]
@@ -347,7 +346,7 @@ function ListView({ releases }: { releases: GroupedRelease[] }) {
         }
 
         return (
-          <section key={weekStart}>
+          <section key={weekStart} id={`week-${weekStart}`}>
             <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-wide mb-3 pb-2 border-b border-zinc-800">{label}</h3>
             <div className="space-y-4">
               {Array.from(byDay.entries()).map(([dateKey, dayReleases]) => {
@@ -441,16 +440,23 @@ export default async function ReleasesPage({
     ? (sp.regions.split(',').filter(Boolean) as RegionGroup[])
     : [];
 
-  const [rawCalendar, rawList, rawImprecise, trackedPlatforms] = await Promise.all([
-    view === 'calendar' ? getReleasesForMonth(year, month) : Promise.resolve([]),
-    view === 'list'     ? getReleasesForList(90)           : Promise.resolve([]),
+  // Both views now use monthly data — consistent navigation and manageable page size
+  const [rawMonth, rawImprecise, trackedPlatforms] = await Promise.all([
+    getReleasesForMonth(year, month),
     getImpreciseReleases(),
     getTrackedPlatforms(),
   ]);
 
-  const calendarReleases = groupByDate(filterByRegion(filterByPlatform(groupReleasesForDisplay(rawCalendar), platformFilter), regionFilter));
-  const listReleases     = filterByRegion(filterByPlatform(groupReleasesForDisplay(rawList), platformFilter), regionFilter);
+  const filtered         = filterByRegion(filterByPlatform(groupReleasesForDisplay(rawMonth), platformFilter), regionFilter);
+  const calendarReleases = groupByDate(filtered);
+  const listReleases     = filtered;
   const impreciseBuckets = groupImprecise(filterByRegion(filterByPlatform(groupReleasesForDisplay(rawImprecise), platformFilter), regionFilter));
+
+  // "This Week" anchor — Monday of the current week
+  const weekOffset  = (now.getDay() + 6) % 7;
+  const thisWeekMon = new Date(now);
+  thisWeekMon.setDate(now.getDate() - weekOffset);
+  const thisWeekKey = thisWeekMon.toISOString().slice(0, 10);
 
   const prevMonth = month === 1 ? 12 : month - 1;
   const prevYear  = month === 1 ? year - 1 : year;
@@ -474,13 +480,13 @@ export default async function ReleasesPage({
           <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1">
             <Link
               href={`/releases?view=calendar&month=${month}&year=${year}${filterQs}`}
-              className={`px-3 py-1.5 rounded text-sm font-semibold transition-colors ${view === 'calendar' ? 'bg-cyan-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+              className={`px-3 py-1.5 rounded text-sm font-semibold transition-colors ${view === 'calendar' ? 'bg-violet-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
             >
               Calendar
             </Link>
             <Link
               href={`/releases?view=list${filterQs}`}
-              className={`px-3 py-1.5 rounded text-sm font-semibold transition-colors ${view === 'list' ? 'bg-cyan-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+              className={`px-3 py-1.5 rounded text-sm font-semibold transition-colors ${view === 'list' ? 'bg-violet-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
             >
               List
             </Link>
@@ -490,36 +496,46 @@ export default async function ReleasesPage({
 
       <div className="flex gap-6 items-start">
         <div className="flex-1 min-w-0">
-          {view === 'calendar' && (
-            <div className="flex items-center justify-between mb-4">
-              <Link
-                href={`/releases?view=calendar&month=${prevMonth}&year=${prevYear}${filterQs}`}
-                className="w-9 h-9 flex items-center justify-center rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-colors"
-                title={`${MONTH_NAMES[prevMonth - 1]} ${prevYear}`}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                </svg>
-              </Link>
+          {/* Month navigation — shown for both calendar and list views */}
+          <div className="flex items-center justify-between mb-4">
+            <Link
+              href={`/releases?view=${view}&month=${prevMonth}&year=${prevYear}${filterQs}`}
+              className="w-9 h-9 flex items-center justify-center rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-colors"
+              title={`${MONTH_NAMES[prevMonth - 1]} ${prevYear}`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </Link>
 
+            <div className="flex items-center gap-3">
               <MonthPicker
                 month={month}
                 year={year}
+                view={view}
                 platformsParam={platformFilter.length ? sp.platforms : undefined}
                 regionsParam={regionFilter.length ? sp.regions : undefined}
               />
-
-              <Link
-                href={`/releases?view=calendar&month=${nextMonth}&year=${nextYear}${filterQs}`}
-                className="w-9 h-9 flex items-center justify-center rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-colors"
-                title={`${MONTH_NAMES[nextMonth - 1]} ${nextYear}`}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
+              {view === 'list' && (
+                <Link
+                  href={`/releases?view=list&month=${now.getMonth() + 1}&year=${now.getFullYear()}${filterQs}#week-${thisWeekKey}`}
+                  className="px-3 py-1 rounded-lg text-xs font-bold text-violet-400 border border-violet-800 hover:border-violet-600 hover:text-violet-300 transition-colors whitespace-nowrap"
+                >
+                  This Week
+                </Link>
+              )}
             </div>
-          )}
+
+            <Link
+              href={`/releases?view=${view}&month=${nextMonth}&year=${nextYear}${filterQs}`}
+              className="w-9 h-9 flex items-center justify-center rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700 transition-colors"
+              title={`${MONTH_NAMES[nextMonth - 1]} ${nextYear}`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </Link>
+          </div>
 
           {view === 'calendar' && (
             <div className="mb-5">

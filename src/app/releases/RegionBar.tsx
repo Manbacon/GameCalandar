@@ -62,7 +62,7 @@ export default function RegionBar() {
             onClick={() => toggle(group)}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all duration-150 ${
               active
-                ? 'bg-cyan-900/40 border-cyan-600 text-cyan-200 shadow-sm shadow-cyan-900/30'
+                ? 'bg-violet-900/40 border-violet-600 text-violet-200 shadow-sm shadow-violet-900/30'
                 : 'bg-zinc-900 border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500'
             }`}
           >

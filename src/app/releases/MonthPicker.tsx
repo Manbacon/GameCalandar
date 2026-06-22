@@ -9,11 +9,12 @@ const MONTHS_FULL  = ['January','February','March','April','May','June','July','
 interface Props {
   month: number; // 1-12
   year: number;
+  view?: string;
   platformsParam?: string;
   regionsParam?: string;
 }
 
-export default function MonthPicker({ month, year, platformsParam, regionsParam }: Props) {
+export default function MonthPicker({ month, year, view = 'calendar', platformsParam, regionsParam }: Props) {
   const [open, setOpen]           = useState(false);
   const [pickerYear, setPickerYear] = useState(year);
   const ref = useRef<HTMLDivElement>(null);
@@ -34,7 +35,7 @@ export default function MonthPicker({ month, year, platformsParam, regionsParam 
   const minYear = now.getFullYear() - 1;
   const maxYear = now.getFullYear() + 2;
   const qs      = (m: number, y: number) =>
-    `/releases?view=calendar&month=${m}&year=${y}${platformsParam ? `&platforms=${platformsParam}` : ''}${regionsParam ? `&regions=${regionsParam}` : ''}`;
+    `/releases?view=${view}&month=${m}&year=${y}${platformsParam ? `&platforms=${platformsParam}` : ''}${regionsParam ? `&regions=${regionsParam}` : ''}`;
 
   return (
     <div className="relative flex items-center gap-2" ref={ref}>
@@ -90,9 +91,9 @@ export default function MonthPicker({ month, year, platformsParam, regionsParam 
                   onClick={() => setOpen(false)}
                   className={`py-1.5 rounded-lg text-sm font-semibold text-center transition-colors ${
                     isCurrent
-                      ? 'bg-cyan-600 text-white'
+                      ? 'bg-violet-600 text-white'
                       : isToday
-                      ? 'text-cyan-400 hover:bg-zinc-800 hover:text-white ring-1 ring-cyan-800'
+                      ? 'text-violet-400 hover:bg-zinc-800 hover:text-white ring-1 ring-violet-800'
                       : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
                   }`}
                 >
