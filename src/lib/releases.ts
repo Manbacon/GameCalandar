@@ -23,10 +23,24 @@ export async function getReleasesForMonth(year: number, month: number) {
 }
 
 export async function getImpreciseReleases() {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
   return prisma.gameRelease.findMany({
-    where: { datePrecision: { not: 'EXACT' }, status: { notIn: ['CANCELLED', 'RELEASED'] }, platform: { isTracked: true } },
+    where: {
+      datePrecision: { not: 'EXACT' },
+      status: { notIn: ['CANCELLED', 'RELEASED'] },
+      platform: { isTracked: true },
+      OR: [
+        { datePrecision: 'TBD' },
+        { datePrecision: 'YEAR',                                yearLabel:   { gte: currentYear  } },
+        { datePrecision: { in: ['MONTH', 'QUARTER'] }, releaseDate: { gte: startOfMonth } },
+      ],
+    },
     include: releaseInclude,
     orderBy: [{ yearLabel: 'asc' }, { quarterLabel: 'asc' }, { releaseDate: 'asc' }],
+    take: 300,
   });
 }
 

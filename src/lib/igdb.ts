@@ -34,18 +34,18 @@ export async function igdbQuery<T = unknown>(endpoint: string, body: string): Pr
   return res.json() as Promise<T[]>;
 }
 
-// IGDB date category → our DatePrecision
-// 0/1/2 = exact, 3 = month, 4 = year, 5-8 = quarter, 9 = TBD
-export function mapDatePrecision(igdbCategory: number): 'EXACT' | 'MONTH' | 'QUARTER' | 'YEAR' | 'TBD' {
-  if (igdbCategory === 9) return 'TBD';
-  if (igdbCategory === 4) return 'YEAR';
-  if (igdbCategory === 3) return 'MONTH';
-  if (igdbCategory >= 5 && igdbCategory <= 8) return 'QUARTER';
+// IGDB date_format → our DatePrecision
+// 0 = exact, 1 = month, 2 = year, 3-6 = quarter (3=Q1, 4=Q2, 5=Q3, 6=Q4), 7 = TBD
+export function mapDatePrecision(igdbDateFormat: number): 'EXACT' | 'MONTH' | 'QUARTER' | 'YEAR' | 'TBD' {
+  if (igdbDateFormat === 7) return 'TBD';
+  if (igdbDateFormat === 2) return 'YEAR';
+  if (igdbDateFormat === 1) return 'MONTH';
+  if (igdbDateFormat >= 3 && igdbDateFormat <= 6) return 'QUARTER';
   return 'EXACT';
 }
 
-export function mapQuarterLabel(igdbCategory: number, date: number): string | null {
-  const quarter = igdbCategory - 4; // 5→Q1, 6→Q2, 7→Q3, 8→Q4
+export function mapQuarterLabel(igdbDateFormat: number, date: number): string | null {
+  const quarter = igdbDateFormat - 2; // 3→Q1, 4→Q2, 5→Q3, 6→Q4
   if (quarter < 1 || quarter > 4) return null;
   const year = new Date(date * 1000).getFullYear();
   return `Q${quarter} ${year}`;
@@ -116,7 +116,7 @@ export interface IgdbReleaseDate {
   date?: number;
   release_region?: number;
   status?: number;
-  category: number; // date precision
+  date_format: number; // date precision (0=exact,1=month,2=year,3-6=quarter,7=TBD)
   game: {
     id: number;
     name: string;
@@ -157,60 +157,58 @@ export interface IgdbGameDetails {
   websites?: { category: number; url: string }[];
 }
 
-// Platform IDs to exclude: mobile, very old hardware, and niche/irrelevant platforms
-const EXCLUDED_PLATFORM_IDS = new Set([
-  34,  // Android
-  39,  // iOS
-  38,  // iPad
-  45,  // Windows Phone
-  55,  // Mobile (generic)
-  87,  // N-Gage
-  // Legacy consoles (gen <= 6)
-  7,   // PS1
-  8,   // PS2
-  9,   // PS3
-  11,  // Xbox
-  12,  // Xbox 360
-  5,   // Wii
-  41,  // Wii U
-  24,  // GBA
-  20,  // DS
-  37,  // 3DS
-  22,  // GameBoy Color
-  33,  // GameBoy Advance
-  // Niche / irrelevant
-  46,  // PlayStation Vita
-  82,  // Web browser
-  161, // Windows Mixed Reality
-  381, // Playdate
-  438, // Arduboy
-  472, // visionOS
+// Explicit allowlist — only these IGDB platform IDs are tracked; everything else is ignored
+export const TRACKED_PLATFORM_IDS = new Set([
+  3,   // Linux
+  6,   // PC (Windows)
+  14,  // Mac
+  48,  // PlayStation 4
+  49,  // Xbox One
+  130, // Nintendo Switch
+  167, // PlayStation 5
+  169, // Xbox Series X|S
+  386, // Meta Quest 2
+  471, // Meta Quest 3
+  508, // Nintendo Switch 2
 ]);
+
+// Ordered list for the admin UI — console-first, then PC, then VR
+export const TRACKED_PLATFORMS = [
+  { id: 167, name: 'PlayStation 5',     abbr: 'PS5'      },
+  { id: 48,  name: 'PlayStation 4',     abbr: 'PS4'      },
+  { id: 169, name: 'Xbox Series X|S',   abbr: 'XSX'      },
+  { id: 49,  name: 'Xbox One',          abbr: 'XONE'     },
+  { id: 508, name: 'Nintendo Switch 2', abbr: 'Switch 2' },
+  { id: 130, name: 'Nintendo Switch',   abbr: 'Switch'   },
+  { id: 6,   name: 'PC (Windows)',      abbr: 'PC'       },
+  { id: 14,  name: 'Mac',               abbr: 'Mac'      },
+  { id: 3,   name: 'Linux',             abbr: 'Linux'    },
+  { id: 471, name: 'Meta Quest 3',      abbr: 'Quest 3'  },
+  { id: 386, name: 'Meta Quest 2',      abbr: 'Quest 2'  },
+] as const;
 
 // IGDB game categories to exclude: mods (5) and forks (12)
 const EXCLUDED_GAME_CATEGORIES = new Set([5, 12]);
 
-export function shouldIncludePlatform(platform: IgdbReleaseDate['platform']): boolean {
-  if (EXCLUDED_PLATFORM_IDS.has(platform.id)) return false;
-  // Exclude anything with a generation lower than 8 (PS4 era) — but keep PC/Mac/Linux which may have no generation
-  const pcIds = new Set([3, 6, 14]); // Linux, PC Windows, Mac
-  if (pcIds.has(platform.id)) return true;
-  if (platform.generation !== undefined && platform.generation < 8) return false;
-  return true;
+export function shouldIncludePlatform(platform: { id: number }): boolean {
+  return TRACKED_PLATFORM_IDS.has(platform.id);
 }
 
 export function shouldIncludeGame(game: IgdbReleaseDate['game']): boolean {
   return !EXCLUDED_GAME_CATEGORIES.has(game.category);
 }
 
-// Fetch all upcoming release dates within the window, paginating through IGDB's 500-result cap.
+// Fetch upcoming release dates from IGDB, restricted to the tracked platform allowlist.
+// Pass platformIds to limit to specific platforms (e.g. per-platform sync).
 // daysAhead defaults to 540 (18 months) — enough to capture credibly-announced titles.
-export async function fetchUpcomingReleaseDates(daysAhead = 540): Promise<IgdbReleaseDate[]> {
-  const now    = Math.floor(Date.now() / 1000);
-  const future = now + daysAhead * 24 * 60 * 60;
+export async function fetchUpcomingReleaseDates(daysAhead = 540, platformIds?: number[]): Promise<IgdbReleaseDate[]> {
+  const now     = Math.floor(Date.now() / 1000);
+  const future  = now + daysAhead * 24 * 60 * 60;
+  const pids    = platformIds ?? Array.from(TRACKED_PLATFORM_IDS);
+  const pFilter = `platform = (${pids.join(',')})`;
 
   const fields = `
-    fields id, date, release_region, status, category,
+    fields id, date, release_region, status, date_format,
       game.id, game.name, game.slug, game.summary, game.storyline, game.category,
       game.rating, game.rating_count, game.first_release_date, game.updated_at,
       game.cover.url, game.genres.name, game.status,
@@ -220,7 +218,6 @@ export async function fetchUpcomingReleaseDates(daysAhead = 540): Promise<IgdbRe
   async function paginate(where: string, sort: string): Promise<IgdbReleaseDate[]> {
     const all: IgdbReleaseDate[] = [];
     let offset = 0;
-    // Safety cap: 10 pages × 500 = 5000 results max
     while (offset < 5000) {
       const batch = await igdbQuery<IgdbReleaseDate>('release_dates', `
         ${fields}
@@ -236,11 +233,9 @@ export async function fetchUpcomingReleaseDates(daysAhead = 540): Promise<IgdbRe
     return all;
   }
 
-  // Run both queries in parallel — IGDB allows 4 req/s, two concurrent is fine
   const [upcoming, imprecise] = await Promise.all([
-    paginate(`date >= ${now} & date <= ${future}`, 'date asc'),
-    // TBD / year / quarter: no date filter possible, take most recently updated
-    paginate('category = (4,5,6,7,8,9)', 'updated_at desc'),
+    paginate(`${pFilter} & date >= ${now} & date <= ${future}`, 'date asc'),
+    paginate(`${pFilter} & date_format = (1,2,3,4,5,6,7)`, 'updated_at desc'),
   ]);
 
   console.log(`[IGDB] Fetched ${upcoming.length} upcoming + ${imprecise.length} imprecise release dates`);

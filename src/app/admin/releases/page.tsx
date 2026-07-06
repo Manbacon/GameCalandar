@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import SyncButton from './SyncButton';
+import SyncControls from './SyncControls';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = { title: 'Release Schedule' };
@@ -21,7 +21,7 @@ const statusColour: Record<string, string> = {
 };
 
 export default async function AdminReleasesPage() {
-  const [games, platforms, releasesCount] = await Promise.all([
+  const [games, releasesCount, trackedCount] = await Promise.all([
     prisma.game.findMany({
       orderBy: { title: 'asc' },
       include: {
@@ -30,41 +30,28 @@ export default async function AdminReleasesPage() {
       },
       take: 200,
     }),
-    prisma.platform.findMany({ orderBy: { name: 'asc' } }),
     prisma.gameRelease.count(),
+    prisma.platform.count({ where: { isTracked: true } }),
   ]);
 
   return (
     <div className="p-8">
-      <div className="flex items-start justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-zinc-50">Release Schedule</h1>
-          <p className="text-zinc-400 text-sm mt-1">
-            {games.length} games · {releasesCount} release entries · {platforms.length} platforms
-          </p>
-        </div>
-        <SyncButton />
+      <div className="mb-6">
+        <h1 className="text-2xl font-black text-zinc-50">Release Schedule</h1>
+        <p className="text-zinc-400 text-sm mt-1">
+          {games.length} games · {releasesCount} release entries · {trackedCount} tracked platforms
+        </p>
       </div>
+
+      <SyncControls />
 
       {games.length === 0 ? (
         <div className="text-center py-24 text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-xl">
           <p className="text-lg mb-2">No games synced yet.</p>
-          <p className="text-sm">Click &ldquo;Sync from IGDB&rdquo; to import upcoming releases.</p>
+          <p className="text-sm">Use the sync controls above to import upcoming releases.</p>
         </div>
       ) : (
         <>
-          {/* Platform overview */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-8">
-            {platforms.map((p) => (
-              <div
-                key={p.id}
-                className={`bg-zinc-900 border rounded-lg px-3 py-2 text-center ${p.isTracked ? 'border-zinc-700' : 'border-zinc-800 opacity-50'}`}
-              >
-                <p className="text-xs font-bold text-zinc-200">{p.abbreviation ?? p.name}</p>
-                <p className="text-xs text-zinc-500">{p.isTracked ? 'Tracked' : 'Hidden'}</p>
-              </div>
-            ))}
-          </div>
 
           {/* Games table */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
