@@ -23,10 +23,24 @@ export async function getReleasesForMonth(year: number, month: number) {
 }
 
 export async function getImpreciseReleases() {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
   return prisma.gameRelease.findMany({
-    where: { datePrecision: { not: 'EXACT' }, status: { notIn: ['CANCELLED', 'RELEASED'] }, platform: { isTracked: true } },
+    where: {
+      datePrecision: { not: 'EXACT' },
+      status: { notIn: ['CANCELLED', 'RELEASED'] },
+      platform: { isTracked: true },
+      OR: [
+        { datePrecision: 'TBD' },
+        { datePrecision: 'YEAR',                                yearLabel:   { gte: currentYear  } },
+        { datePrecision: { in: ['MONTH', 'QUARTER'] }, releaseDate: { gte: startOfMonth } },
+      ],
+    },
     include: releaseInclude,
     orderBy: [{ yearLabel: 'asc' }, { quarterLabel: 'asc' }, { releaseDate: 'asc' }],
+    take: 300,
   });
 }
 
@@ -160,3 +174,23 @@ export function groupImprecise(releases: GroupedRelease[]): ImpreciseBucket[] {
   }
   return Array.from(buckets.entries()).map(([label, rs]) => ({ label, releases: rs }));
 }
+
+// ─── Game search ──────────────────────────────────────────────────────────────
+
+export async function searchGames(query: string, limit = 24) {
+  if (!query.trim()) return [];
+  return prisma.game.findMany({
+    where: { title: { contains: query, mode: 'insensitive' } },
+    include: {
+      releases: {
+        where: { platform: { isTracked: true }, status: { notIn: ['CANCELLED'] } },
+        include: { platform: true },
+        orderBy: { releaseDate: 'asc' },
+      },
+    },
+    orderBy: [{ hypes: 'desc' }, { ratingCount: 'desc' }],
+    take: limit,
+  });
+}
+
+export type GameSearchResult = Awaited<ReturnType<typeof searchGames>>[number];

@@ -1,3 +1,7 @@
 export default function ReleasesLayout({ children }: { children: React.ReactNode }) {
-  return <div data-theme="releases">{children}</div>;
+  return (
+    <div className="min-h-full bg-[#0c0a14]">
+      {children}
+    </div>
+  );
 }
